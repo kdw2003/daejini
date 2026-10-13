@@ -1,0 +1,13 @@
+[theme]
+# 기본 빨강 대신 차분한 청록색: 빨강·파랑은 상승·하락 표시에만 쓰기 위해
+primaryColor = "#1f6f8b"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f3f6f8"
+textColor = "#1f2933"
+
+[server]
+# Windows에서 코드 수정이 자동 반영되지 않던 문제 해결
+fileWatcherType = "poll"
+
+[browser]
+gatherUsageStats = false

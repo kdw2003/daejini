@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# 비밀 값 (API 키)
+.env
+
+# 실행 중 만들어지는 데이터: 개인 포트폴리오·뉴스 DB, 공시 고유번호 캐시
+data/*.db
+data/dart_corp_codes.json
+data/sec_ciks.json
