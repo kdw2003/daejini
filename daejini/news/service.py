@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from .analyze import MODEL, AnalysisError, analyze
+from .analyze import SUMMARY_MODEL, AnalysisError, analyze
 from .fetch import fetch_keyword
 
 
@@ -34,7 +34,7 @@ def api_error_message(e: Exception) -> str:
     return f"분석하지 못했어요: {e}"
 
 
-def refresh_keyword(store, keyword, client=None, days=2, fetcher=fetch_keyword, model=MODEL):
+def refresh_keyword(store, keyword, client=None, days=2, fetcher=fetch_keyword, model=SUMMARY_MODEL):
     result = KeywordResult(keyword)
     try:
         result.new_articles = store.save_articles(keyword, fetcher(keyword, days=days))

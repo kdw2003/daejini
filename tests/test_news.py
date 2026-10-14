@@ -25,6 +25,7 @@ class FakeClient:
         self.calls = []
         self.payload, self.stop_reason = payload, stop_reason
         self.beta = SimpleNamespace(messages=SimpleNamespace(create=self._create))
+        self.messages = SimpleNamespace(create=self._create)  # Haiku는 beta가 아닌 일반 엔드포인트
 
     def _create(self, **kwargs):
         self.calls.append(kwargs)
@@ -86,9 +87,17 @@ def test_analyze_parses_and_cleans_report():
     assert len(report.summary) == 3
     assert [(v.id, v.sentiment) for v in report.verdicts] == [(1, "호재"), (2, "악재")]
     call = client.calls[0]
-    assert call["model"] == "claude-opus-5-5"
-    assert call["fallbacks"] == "default" and call["betas"] == ["server-side-fallback-2026-07-01"]
+    assert call["model"] == "claude-haiku-5-5"  # 뉴스 요약은 Haiku 5.5
+    assert "fallbacks" not in call and "betas" not in call  # Haiku는 서버 측 대체 모델 미지원
+    assert "temperature" not in call  # Haiku 5.5는 기본값이 아닌 temperature를 거부
     assert call["output_config"]["format"]["type"] == "json_schema"
+
+
+def test_analyze_with_opus_keeps_fallbacks():
+    client = FakeClient(PAYLOAD)
+    analyze(client, "삼성전자", ARTICLES, model="claude-opus-5-5")
+    call = client.calls[0]
+    assert call["fallbacks"] == "default" and call["betas"] == ["server-side-fallback-2026-07-01"]
 
 
 @pytest.mark.parametrize("client", [

@@ -18,8 +18,16 @@ def get_store():
 
 
 @st.cache_resource
-def get_client():
+def _cached_client():
     return make_client()
+
+
+def get_client():
+    """Claude 클라이언트. 키가 없어서 None이면 기억하지 않아, 나중에 키를 넣으면 바로 쓰인다."""
+    client = _cached_client()
+    if client is None:
+        _cached_client.clear()
+    return client
 
 
 def md(text: str) -> str:
@@ -73,10 +81,14 @@ def board(tickers: tuple[str, ...]):
     return company_data.fetch_board(list(tickers))
 
 
-@st.cache_data(ttl=1800, show_spinner=False)
 def refresh_market_news():
-    """시장 뉴스 수집·요약. 30분에 한 번만 실제로 실행되고,
-    기사 목록이 그대로면 AI 요약도 다시 하지 않는다."""
+    """시장 뉴스 수집·요약. 30분에 한 번만 실제로 실행되고, 기사 목록이 그대로면 AI 요약도 다시 하지 않는다.
+    API 키가 새로 생기면 바로 요약하도록 키 유무를 캐시 구분값으로 쓴다."""
+    return _refresh_market_news(get_client() is not None)
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def _refresh_market_news(has_client: bool):
     from .news.market import refresh_market
 
     return refresh_market(get_store(), get_client())
@@ -98,10 +110,12 @@ def refresh_keyword_news(keyword: str, days: int, force: bool = False):
 
     from .news.service import refresh_keyword
 
-    fetched, key = _news_fetched_at(), (keyword, days)
+    client = get_client()
+    # API 키가 새로 생기면(client 있음/없음이 바뀌면) 30분을 기다리지 않고 바로 요약하도록 키에 포함
+    fetched, key = _news_fetched_at(), (keyword, days, client is not None)
     if not force and time.time() - fetched.get(key, 0) < NEWS_REFRESH_SECONDS:
         return None
-    result = refresh_keyword(get_store(), keyword, get_client(), days=days)
+    result = refresh_keyword(get_store(), keyword, client, days=days)
     if not result.error:
         fetched[key] = time.time()
     return result

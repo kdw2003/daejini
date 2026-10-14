@@ -3,7 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
-MODEL = "claude-opus-5-5"
+MODEL = "claude-opus-5-5"  # 기업 브리핑·차트 해설처럼 판단이 많이 필요한 분석
+SUMMARY_MODEL = "claude-haiku-5-5"  # 뉴스 3줄 요약·호재/악재 분류: 자주 돌아서 빠르고 저렴한 모델
 
 SYSTEM = """당신은 한국 개인 투자자를 돕는 증권 뉴스 분석가입니다.
 관심 키워드(종목, 산업, 경제 주제)와 관련 기사 제목 목록을 받아 두 가지를 합니다.
@@ -69,17 +70,22 @@ def build_prompt(keyword: str, articles: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def analyze(client, keyword: str, articles: list[dict], model: str = MODEL) -> Report:
+def analyze(client, keyword: str, articles: list[dict], model: str = SUMMARY_MODEL) -> Report:
     """articles: id, title, source, published 를 가진 dict 목록."""
-    response = client.beta.messages.create(
+    request = dict(
         model=model,
-        max_tokens=16000,
-        betas=["server-side-fallback-2026-07-01"],
-        fallbacks="default",
+        max_tokens=16000,  # Haiku 5.5도 생각(thinking)을 해서 여유 있게
         output_config={"effort": "low", "format": {"type": "json_schema", "schema": SCHEMA}},
         system=SYSTEM,
         messages=[{"role": "user", "content": build_prompt(keyword, articles)}],
     )
+    if model.startswith("claude-haiku"):
+        # Haiku 5.5는 서버 측 대체 모델(fallbacks)을 지원하지 않는다. 거절되면 아래에서 안내만 한다.
+        response = client.messages.create(**request)
+    else:
+        response = client.beta.messages.create(
+            **request, betas=["server-side-fallback-2026-07-01"], fallbacks="default",
+        )
     if response.stop_reason == "refusal":
         raise AnalysisError("모델이 이 요청의 분석을 거절했어요.")
     if response.stop_reason == "max_tokens":
