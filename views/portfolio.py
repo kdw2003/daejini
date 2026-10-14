@@ -31,7 +31,7 @@ def signed(value, unit="%", digits=2):
 
 
 def delta_color(value):
-    if not value:
+    if value is None or round(value, 2) == 0:
         return "off"
     return "red" if value > 0 else "blue"
 

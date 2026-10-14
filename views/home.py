@@ -27,12 +27,14 @@ SHORTCUTS = [
 def delta_text(pct):
     if pct is None:
         return None
+    if round(pct, 2) == 0:
+        return "0.00%"  # 아주 작은 소수점 차이로 +0.00%·-0.00%가 나오지 않게
     return f"{pct:+.2f}%"
 
 
 def delta_color(pct):
     # 한국 시장 관례: 오르면 빨강, 내리면 파랑
-    if pct is None or pct == 0:
+    if pct is None or round(pct, 2) == 0:
         return "off"
     return "red" if pct > 0 else "blue"
 
