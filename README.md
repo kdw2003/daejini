@@ -35,13 +35,40 @@ python -m venv .venv
 .venv\Scripts\activate          # Windows
 # source .venv/bin/activate     # macOS / Linux
 
-pip install -r requirements.txt
-python main.py                  # 챗봇 실행 ('종료', 'quit', 'exit'로 끝내기)
-python -m pytest                # 테스트 실행
+pip install -r requirements-dev.txt   # 웹 앱 + 챗봇 + 테스트 (웹 앱만 쓰면 requirements.txt)
+streamlit run app.py                  # 웹 앱
+python main.py                        # 터미널 챗봇 ('종료', 'quit', 'exit'로 끝내기)
+python -m pytest                      # 테스트 실행
 ```
 
-- 주가·환율·뉴스 조회는 인터넷 연결이 필요합니다. 테스트는 의도 분류만 검사하므로 오프라인에서도 돌아갑니다.
+- `requirements.txt`는 웹 앱에 필요한 패키지만, `requirements-dev.txt`는 거기에 챗봇용 형태소 분석기(Kiwi)와 pytest를 더한 것입니다.
+- 주가·환율·뉴스 조회는 인터넷 연결이 필요합니다. 테스트는 네트워크 없이 돌아갑니다.
 - 테스트는 `pytest` 대신 `python -m pytest`로 실행하세요. 그래야 현재 폴더가 import 경로에 들어가 `daejini` 패키지를 찾을 수 있습니다.
+
+## 인터넷에 올리기 (Streamlit Community Cloud, 무료)
+GitHub 저장소를 연결하면 `https://이름.streamlit.app` 주소로 어디서나 접속할 수 있습니다.
+
+1. https://share.streamlit.io 에 **GitHub 계정으로 로그인**합니다.
+2. **Create app** → **Deploy a public app from GitHub**을 고르고 아래처럼 넣습니다.
+   - Repository: `kdw2003/daejini` · Branch: `main` · Main file path: `app.py`
+   - App URL: 원하는 이름 (예: `daejini`)
+3. **Advanced settings**에서 Python 버전을 3.12로 고르고, **Secrets**에 아래를 넣습니다.
+   ```toml
+   APP_PASSWORD = "직접 정한 비밀번호"
+   # 아래는 있으면 넣기
+   # ANTHROPIC_API_KEY = "sk-ant-..."
+   # DART_API_KEY = "..."
+   # SEC_USER_AGENT = "daejini 본인이메일"
+   ```
+4. **Deploy**를 누르면 몇 분 뒤 앱이 열립니다. 이후 GitHub에 올린 변경은 자동으로 반영됩니다.
+
+알아 둘 점:
+- **비밀번호**: `APP_PASSWORD`가 있으면 로그인 화면이 먼저 나옵니다. 로그인은 브라우저 탭마다 따로라서 새로고침하면 다시 입력합니다. 로컬에서 `.env`에 넣지 않으면 비밀번호 없이 열립니다.
+- **데이터 초기화**: 무료 서버는 다시 시작되면 저장 공간이 지워집니다. 포트폴리오의 **백업 · 복원**으로 백업 파일을 받아 두고, 지워지면 복원하세요.
+- **같은 데이터 공유**: 비밀번호를 아는 사람은 모두 같은 포트폴리오와 관심 키워드를 봅니다. 사용자별로 나누는 기능은 아직 없습니다.
+- **잠자기**: 한동안 아무도 접속하지 않으면 앱이 잠들고, 다음 접속 때 깨우는 데 1분 정도 걸립니다.
+- **시세 제한**: Yahoo Finance가 클라우드 서버의 요청을 일시적으로 막을 때가 있습니다. 그러면 잠시 뒤 다시 시도하세요.
+- **휴대폰에서 앱처럼 쓰기**: 주소를 연 뒤 공유 버튼 → **홈 화면에 추가**하면 아이콘이 생깁니다. 휴대폰 화면에서는 카드가 두 개씩 놓이도록 맞춰 두었습니다.
 
 ## 홈 화면
 `streamlit run app.py`로 열면 처음 보이는 화면입니다. 자세한 기능은 위쪽 메뉴나 카드의 버튼으로 들어갑니다.
@@ -192,7 +219,7 @@ streamlit run app.py            # 브라우저에서 http://localhost:8501 이 �
 ## 구조
 ```
 main.py               # 터미널 챗봇
-app.py                # 웹 앱 진입점 (Streamlit 메뉴)
+app.py                # 웹 앱 진입점 (비밀번호 화면, 메뉴, 휴대폰 화면 맞춤)
 .streamlit/config.toml # 화면 색, 코드 변경 감지 설정
 views/
 ├── home.py           # 홈 화면 (지수, 시장 뉴스 요약, 주요 종목, 바로가기)
@@ -201,10 +228,12 @@ views/
 ├── sector.py         # 산업 비교 화면
 ├── portfolio.py      # 포트폴리오 화면
 └── signals.py        # 매매 참고 구간 화면
-requirements.txt
+requirements.txt      # 웹 앱 패키지 (클라우드 배포용)
+requirements-dev.txt  # + 챗봇 형태소 분석, pytest
 .env.example          # API 키 설정 예시
 daejini/
 ├── ui.py             # 화면 공용 도우미 (캐시된 데이터, 텍스트 이스케이프)
+├── settings.py       # 설정 값(.env·Secrets) 읽기, 앱 비밀번호
 ├── company/          # 기업 분석
 │   ├── metrics.py    # 지표 계산과 표시 형식
 │   ├── data.py       # 기업 목록, 시세·재무 데이터 (yfinance)
@@ -237,7 +266,8 @@ tests/
 ├── test_news.py      # 뉴스 수집·저장·분석 테스트 (네트워크·API 없이 실행)
 ├── test_company.py   # 지표 계산·DART·AI 브리핑 테스트 (네트워크·API 없이 실행)
 ├── test_portfolio.py # 평균단가·평가·점검 테스트
-└── test_signals.py   # 지표·구간·백테스트(미래 데이터 차단 포함)·AI 해설 테스트
+├── test_signals.py   # 지표·구간·백테스트(미래 데이터 차단 포함)·AI 해설 테스트
+└── test_settings.py  # 비밀번호, Secrets 읽기, 포트폴리오 백업·복원 테스트
 ```
 
 ## 참고 및 한계
@@ -247,7 +277,7 @@ tests/
 
 ## 앞으로 할 것
 - API 키를 넣고 AI 기능(뉴스 요약·호재/악재, 기업 브리핑, 차트 해설)을 실제 응답으로 점검
-- 친구들에게 공개: 로그인, 사용자별 키워드·포트폴리오 저장, 배포(Streamlit Community Cloud)
+- 친구들에게 공개: 사용자별 로그인과 키워드·포트폴리오 분리, 서버가 다시 시작돼도 지워지지 않는 저장소(외부 DB)
 - 포트폴리오: 매수 당시 환율 기록으로 환차익 반영, 매수·매도 기록
 - 미국 경제 지표(금리, 물가, 고용) 조회
 - 음성 입력/출력 (원래 대지니처럼 STT·TTS)

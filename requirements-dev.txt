@@ -1,0 +1,4 @@
+# 개발용: 웹 앱 패키지 + 터미널 챗봇(main.py)의 형태소 분석 + 테스트
+-r requirements.txt
+kiwipiepy>=0.17
+pytest>=7.0

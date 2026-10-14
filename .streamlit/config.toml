@@ -11,3 +11,7 @@ fileWatcherType = "poll"
 
 [browser]
 gatherUsageStats = false
+
+[client]
+# 앱 사용자에게 개발자 메뉴(Deploy 등)를 숨김
+toolbarMode = "viewer"

@@ -1,4 +1,7 @@
-"""포트폴리오: 검색해서 바로 추가, 보유 종목 카드, 비중·수익률, 점검."""
+"""포트폴리오: 검색해서 바로 추가, 보유 종목 카드, 비중·수익률, 점검, 백업·복원."""
+import json
+from datetime import datetime
+
 import altair as alt
 import pandas as pd
 import streamlit as st
@@ -35,6 +38,32 @@ def delta_color(value):
 
 def qty_text(q):
     return f"{q:,.0f}" if float(q).is_integer() else f"{q:,.4f}".rstrip("0").rstrip(".")
+
+
+def backup_section(expanded: bool):
+    with st.expander("백업 · 복원", icon=":material/save:", expanded=expanded):
+        st.caption("클라우드에 올린 앱은 서버가 다시 시작되면 저장된 데이터가 지워질 수 있어요. "
+                   "종목을 바꾼 뒤에는 백업 파일을 받아 두세요.")
+        b_col, r_col = st.columns(2)
+        b_col.download_button(
+            "백업 파일 받기", data=json.dumps(portfolio.export(), ensure_ascii=False, indent=2),
+            file_name=f"daejini-portfolio-{datetime.now():%Y%m%d}.json", mime="application/json",
+            icon=":material/download:", use_container_width=True, disabled=not holdings,
+        )
+        upload = r_col.file_uploader("백업 파일로 복원", type=["json"], label_visibility="collapsed")
+        if upload is not None and r_col.button("이 파일로 복원 (지금 종목을 대체해요)", use_container_width=True):
+            try:
+                data = json.loads(upload.getvalue().decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                st.error("JSON 파일을 읽지 못했어요.")
+                return
+            try:
+                count = portfolio.restore(data)
+            except ValueError as e:
+                st.error(str(e))
+                return
+            st.toast(f"보유 종목 {count}개를 복원했어요.")
+            st.rerun()
 
 
 options = search_options()
@@ -106,6 +135,7 @@ if not holdings:
                 portfolio.buy(ticker, name, sector, q, round(info["price"] * factor, 2))
         st.session_state["example-loaded"] = True
         st.rerun()
+    backup_section(expanded=True)
     st.stop()
 
 if st.session_state.get("example-loaded"):
@@ -226,6 +256,8 @@ if valued:
             .properties(height=60 + 36 * len(valued)),
             use_container_width=True,
         )
+
+backup_section(expanded=False)
 
 with st.expander("포트폴리오 전체 삭제", icon=":material/delete:"):
     confirm = st.checkbox("모든 보유 종목을 지울게요. 되돌릴 수 없어요.")

@@ -72,6 +72,38 @@ class PortfolioStore:
                 "UPDATE holdings SET quantity = ?, avg_price = ? WHERE ticker = ?", (quantity, avg_price, ticker)
             )
 
+    def export(self) -> dict:
+        """백업용: 보유 종목 전체를 JSON으로 저장할 수 있는 dict로."""
+        return {"version": 1, "holdings": [
+            {"ticker": h.ticker, "name": h.name, "sector": h.sector, "quantity": h.quantity, "avg_price": h.avg_price}
+            for h in self.holdings()
+        ]}
+
+    def restore(self, backup: dict) -> int:
+        """백업을 불러와 현재 보유 종목을 통째로 바꾼다. 형식이 틀리면 아무것도 바꾸지 않는다."""
+        rows = backup.get("holdings") if isinstance(backup, dict) else None
+        if not isinstance(rows, list):
+            raise ValueError("대지니 포트폴리오 백업 파일이 아니에요.")
+        clean = []
+        for r in rows:
+            try:
+                h = Holding(str(r["ticker"]).strip().upper(), str(r["name"]).strip(), str(r.get("sector") or "기타"),
+                            float(r["quantity"]), float(r["avg_price"]))
+            except (KeyError, TypeError, ValueError):
+                raise ValueError("백업 파일의 종목 정보가 올바르지 않아요.") from None
+            if not h.ticker or h.quantity <= 0 or h.avg_price <= 0:
+                raise ValueError(f"{h.ticker or '이름 없는 종목'}의 수량이나 단가가 올바르지 않아요.")
+            clean.append(h)
+        now = datetime.now(timezone.utc).isoformat()
+        with self.conn:
+            self.conn.execute("DELETE FROM holdings")
+            for h in clean:
+                self.conn.execute(
+                    "INSERT OR REPLACE INTO holdings VALUES (?, ?, ?, ?, ?, ?)",
+                    (h.ticker, h.name, h.sector, h.quantity, h.avg_price, now),
+                )
+        return len(clean)
+
     def remove(self, ticker: str) -> None:
         with self.conn:
             self.conn.execute("DELETE FROM holdings WHERE ticker = ?", (ticker,))

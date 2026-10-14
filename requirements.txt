@@ -1,8 +1,7 @@
-kiwipiepy>=0.17
-yfinance>=0.2
+# 웹 앱(streamlit run app.py)에 필요한 패키지. 클라우드 배포도 이 파일을 씁니다.
+streamlit>=1.65
+yfinance>=1.7
 feedparser>=6.0
 anthropic>=1.13
 pydantic>=2.0
 python-dotenv>=1.0
-streamlit>=1.40
-pytest>=7.0
