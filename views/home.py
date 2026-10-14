@@ -1,4 +1,6 @@
 """홈: 총 자산 → 메뉴 아이콘 → 보유 주식(매수가·현재가·변동률·그래프) → 미국 증시 뉴스 3줄 요약."""
+import base64
+import html
 from datetime import datetime
 
 import streamlit as st
@@ -17,7 +19,6 @@ MENU = [
     ("views/portfolio.py", ":material/account_balance_wallet:", "포트폴리오"),
     ("views/signals.py", ":material/candlestick_chart:", "매매 구간"),
 ]
-CARDS_PER_ROW = 3
 
 # 메뉴를 앱 아이콘처럼: 아이콘 위, 글자 아래인 둥근 타일. 휴대폰에서도 5개가 한 줄에 들어가게
 st.html("""
@@ -34,8 +35,6 @@ st.html("""
 .st-key-menu [data-testid="stPageLink"] a [data-testid="stIconMaterial"] { font-size: 2rem !important; color: #1f6f8b; }
 .st-key-menu [data-testid="stPageLink"] a p { font-size: 0.85rem; text-align: center; margin: 0; white-space: nowrap; }
 @media (max-width: 640px) {
-  /* 휴대폰: 보유 주식 카드는 한 줄에 하나씩 (글자가 잘리지 않게) */
-  .st-key-holdings [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] { flex: 1 1 100% !important; min-width: 100% !important; }
   .st-key-menu [data-testid="stPageLink"] a { padding: 0.7rem 0.1rem; border-radius: 14px; }
   .st-key-menu [data-testid="stPageLink"] a [data-testid="stIconMaterial"] { font-size: 1.6rem !important; }
   .st-key-menu [data-testid="stPageLink"] a p { font-size: 0.72rem; }
@@ -69,6 +68,82 @@ def colored(amount, pct):
 
 def qty_text(q):
     return f"{q:,.0f}" if float(q).is_integer() else f"{q:,.4f}".rstrip("0").rstrip(".")
+
+
+UP, DOWN, FLAT = "#d1242f", "#1d5fd0", "#8a96a3"  # 한국 시장 관례: 상승 빨강, 하락 파랑
+
+
+def sparkline(values, color, width=72, height=26):
+    """작은 꺾은선 그래프(SVG). 값이 2개 미만이면 빈 칸."""
+    vals = [v for v in (values or []) if v is not None]
+    if len(vals) < 2:
+        return ""
+    lo, hi = min(vals), max(vals)
+    span = (hi - lo) or 1
+    step = width / (len(vals) - 1)
+    pts = [(i * step, height - 2 - (v - lo) / span * (height - 4)) for i, v in enumerate(vals)]
+    line = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+    area = f"0,{height} {line} {width},{height}"
+    svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">'
+           f'<polygon points="{area}" fill="{color}" fill-opacity="0.12"/>'
+           f'<polyline points="{line}" fill="none" stroke="{color}" stroke-width="1.6" '
+           f'stroke-linejoin="round" stroke-linecap="round"/></svg>')
+    # st.html은 보안상 <svg> 태그를 지우므로 이미지(data URI)로 넣는다
+    data = base64.b64encode(svg.encode()).decode()
+    return f'<img src="data:image/svg+xml;base64,{data}" width="{width}" height="{height}" alt="">'
+
+
+
+def holdings_table(positions, quotes) -> str:
+    """보유 종목을 한 줄씩: 종목 | 매수가 | 현재가 | 변동률 | 그래프."""
+    rows = []
+    for p in positions:
+        name = html.escape(p.name)
+        if p.value is None:
+            rows.append(f'<div class="dj-row"><div class="dj-name"><b>{name}</b><span>{p.ticker}</span></div>'
+                        f'<div class="dj-missing">시세를 불러오지 못했어요</div></div>')
+            continue
+        pct = p.pnl_pct
+        color = FLAT if round(pct, 2) == 0 else (UP if pct > 0 else DOWN)
+        value = fmt_money(p.value, p.currency) + (f" (약 {fmt_krw(p.value_krw)})" if p.currency == "USD" else "")
+        tip = html.escape(f"{p.name} {qty_text(p.quantity)}주 · 평가 {value} · 오늘 {delta_text(p.day_pct) or '—'}")
+        rows.append(
+            f'<div class="dj-row" title="{tip}">'
+            f'<div class="dj-name"><b>{name}</b><span>{p.ticker}</span></div>'
+            f'<div class="dj-num">{fmt_price(p.avg_price, p.currency)}</div>'
+            f'<div class="dj-num dj-now">{fmt_price(p.price, p.currency)}</div>'
+            f'<div class="dj-pct" style="color:{color}">{delta_text(pct)}</div>'
+            f'<div class="dj-chart">{sparkline(quotes.get(p.ticker, {}).get("closes"), color)}</div>'
+            f'</div>'
+        )
+    head = ('<div class="dj-row dj-head"><div class="dj-name">종목</div><div class="dj-num">매수가</div>'
+            '<div class="dj-num">현재가</div><div class="dj-pct">변동률</div><div class="dj-chart">1개월</div></div>')
+    return f"""
+<style>
+.dj-list {{ border: 1px solid #e3e8ec; border-radius: 14px; overflow: hidden; font-family: inherit; }}
+.dj-row {{ display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.8fr) 76px;
+           align-items: center; gap: 8px; padding: 9px 14px; border-top: 1px solid #eef1f4; font-size: 14px; color: #1f2933; }}
+.dj-row:first-child {{ border-top: 0; }}
+.dj-head {{ background: #f3f6f8; color: #6b7785; font-size: 12px; padding-top: 7px; padding-bottom: 7px; }}
+.dj-name {{ min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }}
+.dj-name b {{ white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }}
+.dj-name span {{ color: #8a96a3; font-size: 11px; }}
+.dj-num, .dj-pct {{ text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; }}
+.dj-head .dj-name {{ display: block; }}
+.dj-now {{ font-weight: 600; }}
+.dj-pct {{ font-weight: 600; }}
+.dj-chart {{ display: flex; justify-content: flex-end; }}
+.dj-missing {{ grid-column: 2 / -1; color: #8a96a3; font-size: 12px; text-align: right; }}
+@media (max-width: 640px) {{
+  .dj-row {{ grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.85fr) 52px;
+             gap: 5px; padding: 8px 10px; font-size: 12px; }}
+  .dj-head {{ font-size: 11px; }}
+  .dj-name span {{ font-size: 10px; }}
+  .dj-chart img {{ width: 52px; height: 22px; }}
+}}
+</style>
+<div class="dj-list">{head}{''.join(rows)}</div>
+"""
 
 
 index = company_index()
@@ -121,27 +196,9 @@ if not holdings:
     st.caption("아직 등록한 종목이 없어요.")
     st.page_link("views/portfolio.py", label="포트폴리오에서 종목 추가하기", icon=":material/add_circle:")
 else:
-    st.caption("변동률은 매수가 대비 수익률이에요. 그래프는 최근 한 달 주가예요.")
     ordered = sorted(positions, key=lambda p: p.value_krw or 0, reverse=True)
-    holdings_box = st.container(key="holdings")
-    for start in range(0, len(ordered), CARDS_PER_ROW):
-        row = holdings_box.columns(CARDS_PER_ROW)
-        for col, p in zip(row, ordered[start:start + CARDS_PER_ROW]):
-            q = quotes.get(p.ticker, {})
-            with col.container(border=True):
-                st.markdown(f"**{ui.md(p.name)}** :gray[{p.ticker}]")
-                if p.value is None:
-                    st.caption("시세를 불러오지 못했어요")
-                    continue
-                st.metric(
-                    ui.dollars(f"매수가 {fmt_price(p.avg_price, p.currency)} → 현재가"),
-                    ui.dollars(fmt_price(p.price, p.currency)),
-                    delta_text(p.pnl_pct), delta_color=delta_color(p.pnl_pct), delta_description="매수가 대비",
-                    chart_data=q.get("closes") or None, chart_type="area",
-                )
-                today = delta_text(p.day_pct) or "—"
-                value = fmt_money(p.value, p.currency) + (f" (약 {fmt_krw(p.value_krw)})" if p.currency == "USD" else "")
-                st.caption(ui.dollars(f"{qty_text(p.quantity)}주 · 평가 {value} · 오늘 {today}"))
+    st.html(holdings_table(ordered, quotes))
+    st.caption("변동률은 매수가 대비 수익률, 그래프는 최근 한 달 주가예요. 종목에 손가락(마우스)을 올리면 수량·평가금액이 보여요.")
 
 # ── 4. 아래로 내리면: 미국 증시 뉴스 3줄 요약
 st.subheader(":material/bolt: 오늘의 미국 증시 뉴스", anchor=False)
