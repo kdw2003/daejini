@@ -82,6 +82,38 @@ def refresh_market_news():
     return refresh_market(get_store(), get_client())
 
 
+NEWS_REFRESH_SECONDS = 1800
+
+
+@st.cache_resource
+def _news_fetched_at() -> dict:
+    """{(키워드, 기간): 마지막으로 수집에 성공한 시각}. 모든 접속자가 함께 쓴다."""
+    return {}
+
+
+def refresh_keyword_news(keyword: str, days: int, force: bool = False):
+    """키워드 뉴스 수집·분석. 성공한 뒤 30분 안에는 다시 모으지 않는다(None 반환).
+    실패는 기억하지 않아서 다음에 열 때 바로 다시 시도한다."""
+    import time
+
+    from .news.service import refresh_keyword
+
+    fetched, key = _news_fetched_at(), (keyword, days)
+    if not force and time.time() - fetched.get(key, 0) < NEWS_REFRESH_SECONDS:
+        return None
+    result = refresh_keyword(get_store(), keyword, get_client(), days=days)
+    if not result.error:
+        fetched[key] = time.time()
+    return result
+
+
+def forget_keyword_news(keyword: str) -> None:
+    """키워드를 지웠다가 다시 추가하면 바로 새로 모으도록 기록을 지운다."""
+    fetched = _news_fetched_at()
+    for key in [k for k in fetched if k[0] == keyword]:
+        del fetched[key]
+
+
 @st.cache_data(ttl=6 * 3600, show_spinner=False)
 def snapshot(name: str):
     ticker, sector = company_data.company_index()[name]
