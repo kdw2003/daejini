@@ -7,7 +7,7 @@ from daejini.settings import app_password, load_secrets, password_ok
 load_dotenv()
 load_secrets(st.secrets)
 
-st.set_page_config(page_title="대지니", page_icon=":material/insights:", layout="wide")
+st.set_page_config(page_title="대지니", page_icon="docs/icons/icon-192.png", layout="wide")
 
 # 휴대폰 화면(640px 이하): 한 줄짜리 카드가 화면을 다 차지하지 않게 2개씩 놓고 숫자를 줄인다
 st.html("""

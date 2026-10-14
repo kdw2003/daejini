@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>대지니</title>
+  <meta name="description" content="미국 주식 투자 비서 대지니">
+
+  <!-- 홈 화면에 추가했을 때의 이름·아이콘·전체 화면 설정 -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="theme-color" content="#1f6f8b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="대지니">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+  <style>
+    html, body { margin: 0; height: 100%; background: #ffffff; }
+    body {
+      /* 아이폰 노치·홈 바 영역을 피해서 앱을 놓음 */
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    }
+    iframe { display: block; width: 100%; height: 100%; border: 0; }
+    .loading {
+      position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 14px; background: #ffffff; color: #52606d; font-size: 15px; transition: opacity .3s;
+    }
+    .loading img { width: 72px; height: 72px; border-radius: 16px; }
+    .loading a { color: #1f6f8b; }
+    .loading.hidden { opacity: 0; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div class="loading" id="loading">
+    <img src="icons/icon-192.png" alt="">
+    <div>대지니를 여는 중이에요</div>
+    <div id="slow" hidden>오래 걸리면 앱이 잠들어 있던 거예요. 잠시만 기다려 주세요.<br>
+      계속 안 열리면 <a href="https://daejini.streamlit.app/" target="_blank" rel="noopener">여기를 눌러 바로 열기</a></div>
+  </div>
+  <!-- Streamlit 앱을 화면 가득 띄움. embed=true는 Streamlit이 공식 지원하는 끼워 넣기 모드 -->
+  <iframe id="app" title="대지니" src="https://daejini.streamlit.app/?embed=true"
+          allow="clipboard-write; fullscreen" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+  <script>
+    const loading = document.getElementById("loading");
+    document.getElementById("app").addEventListener("load", () => loading.classList.add("hidden"));
+    setTimeout(() => { document.getElementById("slow").hidden = false; }, 8000);
+  </script>
+</body>
+</html>
