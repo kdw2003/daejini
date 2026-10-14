@@ -8,7 +8,7 @@ from daejini.ui import kst, md
 PERIODS = {"오늘·어제": 2, "최근 3일": 3, "최근 7일": 7}
 BADGE = {"호재": ":red-badge[호재]", "악재": ":blue-badge[악재]", "중립": ":gray-badge[중립]", None: ":gray-badge[분석 전]"}
 SUGGESTIONS = ["엔비디아", "테슬라", "애플", "미국 금리", "반도체", "비트코인"]
-PICK, PENDING = "news-kw", "news-kw-pending"
+PICK, PENDING, UNDO, MANAGE = "news-kw", "news-kw-pending", "news-kw-undo", "news-kw-manage"
 
 
 def counts(articles):
@@ -26,7 +26,39 @@ def add_keyword(text: str):
     if not store.add_keyword(kw):
         st.toast(f"'{kw}'은(는) 이미 있어요")
     st.session_state[PENDING] = kw
+    st.session_state.pop(UNDO, None)
     st.rerun()
+
+
+def unfollow(kw: str):
+    """관심 해제 (버튼 콜백). 실수했을 때 되돌릴 수 있게 기억해 둔다."""
+    store.remove_keyword(kw)
+    ui.forget_keyword_news(kw)  # 다시 추가하면 바로 새로 모으도록
+    st.session_state[UNDO] = kw
+
+
+def undo_unfollow():
+    kw = st.session_state.pop(UNDO, None)
+    if kw:
+        store.add_keyword(kw)
+        st.session_state[PENDING] = kw
+
+
+def sync_managed_keywords():
+    """'키워드 관리' 태그 목록이 바뀌면: ×로 뺀 것은 해제, 새로 입력한 것은 추가."""
+    wanted = [k.strip() for k in st.session_state.get(MANAGE, []) if k and k.strip()]
+    current = store.keywords()
+    removed = [k for k in current if k not in wanted]
+    added = [k for k in wanted if k not in current]
+    for k in removed:
+        unfollow(k)
+    for k in added:
+        store.add_keyword(k)
+    if added:
+        st.session_state[PENDING] = added[-1]
+        st.session_state.pop(UNDO, None)
+    elif len(removed) != 1:
+        st.session_state.pop(UNDO, None)  # 여러 개를 한꺼번에 뺀 경우는 되돌리기 대상이 아님
 
 
 store, client = ui.get_store(), ui.get_client()
@@ -35,6 +67,12 @@ keywords = store.keywords()
 st.title("뉴스 브리핑")
 st.caption("관심 키워드를 누르면 그 키워드의 뉴스 요약과 기사가 바로 나와요. "
            "AI 분석은 기사 제목만 보고 한 판단이라 틀릴 수 있고, 매수·매도 권유가 아니에요.")
+
+# ── 방금 관심 해제한 키워드 되돌리기
+if st.session_state.get(UNDO):
+    u_text, u_btn = st.columns([4, 1], vertical_alignment="center")
+    u_text.info(f"'{st.session_state[UNDO]}'을(를) 관심 키워드에서 뺐어요.", icon=":material/check:")
+    u_btn.button("되돌리기", icon=":material/undo:", on_click=undo_unfollow, use_container_width=True)
 
 # ── 키워드가 없을 때: 추천 키워드를 눌러 바로 시작
 if not keywords:
@@ -60,21 +98,15 @@ if st.session_state.get(PICK) not in keywords:
 selected = st.pills("관심 키워드", keywords, selection_mode="single", key=PICK) or keywords[0]
 
 # ── 키워드 추가·편집, 기간, 새로고침
-c_add, c_edit, c_refresh = st.columns(3, vertical_alignment="bottom")
-with c_add.popover("키워드 추가", icon=":material/add:", use_container_width=True):
-    with st.form("add-keyword", clear_on_submit=True, border=False):
-        text = st.text_input("종목, 산업, 경제 주제", placeholder="예: 마이크로소프트, 미국 금리")
-        if st.form_submit_button("추가", type="primary", use_container_width=True):
-            add_keyword(text)
-with c_edit.popover("편집", icon=":material/edit:", use_container_width=True):
-    st.caption("지울 키워드의 ✕를 누르세요.")
-    for kw in keywords:
-        name_col, del_col = st.columns([4, 1], vertical_alignment="center")
-        name_col.write(kw)
-        if del_col.button("✕", key=f"del-{kw}", help=f"'{kw}' 삭제"):
-            store.remove_keyword(kw)
-            ui.forget_keyword_news(kw)  # 다시 추가하면 바로 새로 모으도록
-            st.rerun()
+c_manage, c_refresh = st.columns(2, vertical_alignment="bottom")
+with c_manage.popover("키워드 관리", icon=":material/tune:", use_container_width=True):
+    st.session_state[MANAGE] = keywords  # 그릴 때마다 저장된 목록과 맞춤
+    st.multiselect(
+        "관심 키워드", options=keywords + [s for s in SUGGESTIONS if s not in keywords], key=MANAGE,
+        accept_new_options=True, on_change=sync_managed_keywords, placeholder="키워드를 입력하고 Enter",
+    )
+    st.caption("태그의 × 를 누르면 관심 해제, 이름을 입력하고 Enter를 누르면 추가돼요. "
+               "칸을 누르면 추천 키워드도 고를 수 있어요.")
 period = st.segmented_control("기간", list(PERIODS), default="오늘·어제", key="news-period") or "오늘·어제"
 days = PERIODS[period]
 refresh = c_refresh.button("새로고침", icon=":material/refresh:", use_container_width=True,
@@ -91,7 +123,10 @@ summary = store.summary(selected)
 c = counts(articles)
 
 with st.container(border=True):
-    st.subheader(md(selected), anchor=False)
+    h_title, h_btn = st.columns([4, 1], vertical_alignment="center")
+    h_title.subheader(md(selected), anchor=False)
+    h_btn.button("관심 해제", key="unfollow", icon=":material/bookmark_remove:", on_click=unfollow, args=(selected,),
+                 use_container_width=True, help="이 키워드를 관심 키워드에서 빼요")
     st.markdown(f"기사 {len(articles)}건 · :red[호재 {c['호재']}] · :blue[악재 {c['악재']}] · 중립 {c['중립']}"
                 + (f" · 분석 전 {c[None]}" if c[None] else ""))
     if summary and summary["lines"]:
