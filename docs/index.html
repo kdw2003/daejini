@@ -32,6 +32,13 @@
     .loading img { width: 72px; height: 72px; border-radius: 16px; }
     .loading a { color: #1f6f8b; }
     .loading.hidden { opacity: 0; pointer-events: none; }
+    .wake {
+      position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom));
+      padding: 10px 14px; border-radius: 12px; background: #1f2933; color: #ffffff; font-size: 14px;
+      text-align: center; box-shadow: 0 4px 16px rgba(0,0,0,.18); transition: opacity .4s;
+    }
+    .wake a { color: #9fd8e8; font-weight: 600; }
+    .wake.hidden { opacity: 0; pointer-events: none; }
   </style>
 </head>
 <body>
@@ -41,13 +48,16 @@
     <div id="slow" hidden>오래 걸리면 앱이 잠들어 있던 거예요. 잠시만 기다려 주세요.<br>
       계속 안 열리면 <a href="https://daejini.streamlit.app/" target="_blank" rel="noopener">여기를 눌러 바로 열기</a></div>
   </div>
-  <!-- Streamlit 앱을 화면 가득 띄움. embed=true는 Streamlit이 공식 지원하는 끼워 넣기 모드 -->
-  <iframe id="app" title="대지니" src="https://daejini.streamlit.app/?embed=true"
+  <!-- 앱이 잠들어 있으면 끼워 넣은 화면이 비어 보일 수 있어, 처음 몇 초 동안 깨우는 링크를 보여줌 -->
+  <div class="wake" id="wake">화면이 비어 있으면 <a href="https://daejini.streamlit.app/">눌러서 앱 깨우기</a></div>
+  <!-- Streamlit 앱 본체(/~/+/)를 화면 가득 띄움. embed=true는 Streamlit 메뉴를 숨기는 끼워 넣기 모드 -->
+  <iframe id="app" title="대지니" src="https://daejini.streamlit.app/~/+/?embed=true"
           allow="clipboard-write; fullscreen" referrerpolicy="strict-origin-when-cross-origin"></iframe>
   <script>
     const loading = document.getElementById("loading");
     document.getElementById("app").addEventListener("load", () => loading.classList.add("hidden"));
     setTimeout(() => { document.getElementById("slow").hidden = false; }, 8000);
+    setTimeout(() => { document.getElementById("wake").classList.add("hidden"); }, 15000);
   </script>
 </body>
 </html>
